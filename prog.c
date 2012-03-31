@@ -27,6 +27,7 @@ int uds(char* path) {
         close(s);
         exit(1);
     }
+
     if (listen(s, 5) == -1) {
         perror("listen");
         close(s);
