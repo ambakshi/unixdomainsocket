@@ -113,9 +113,11 @@ int udc(char* path) {
 }
 
 
-static void sigchld_hdl (int sig) {
-    while (waitpid(-1, NULL, WNOHANG) > 0) {
-	}
+static void signal_hdlr(int sig) {
+    if (sig == SIGCHLD) {
+        while (waitpid(-1, NULL, WNOHANG) > 0) {
+        }
+    }
 }
 
 
@@ -156,13 +158,13 @@ int main(int argc, char** argv) {
     }
     // Install SIGCHLD handler
     struct sigaction act;
-	memset (&act, 0, sizeof(act));
-	act.sa_handler = sigchld_hdl;
+    memset (&act, 0, sizeof(act));
+    act.sa_handler = signal_hdlr;
 
-	if (sigaction(SIGCHLD, &act, 0)) {
-		perror ("sigaction");
-		exit(1);
-	}
+    if (sigaction(SIGCHLD, &act, 0)) {
+        perror ("sigaction");
+        exit(1);
+    }
 
     if (session) {
         int pid = fork();
