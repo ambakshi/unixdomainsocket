@@ -3,6 +3,8 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/un.h>
+#include <signal.h>
+#include <unistd.h>
 
 #include <getopt.h>
 
@@ -27,6 +29,7 @@ int uds(char* path) {
         close(s);
         exit(1);
     }
+    //chmod(path, 1700);
 
     if (listen(s, 5) == -1) {
         perror("listen");
@@ -47,24 +50,25 @@ int uds(char* path) {
             close(s);
             exit(1);
         }
-
-        printf("Connected\n");
-
-        done = 0;
-        do {
-            n = recv(s2, str, 100, 0);
-            if (n <= 0) {
-                if (n < 0) perror("recv");
-                done = 1;
-            }
-            if (!done) {
-                if (send(s2, str, n, 0) < 0) {
-                    perror("send");
+        int pid = fork();
+        if (pid == 0) {
+            printf("Connected\n");
+            done = 0;
+            do {
+                n = recv(s2, str, 100, 0);
+                if (n <= 0) {
+                    if (n < 0) perror("recv");
                     done = 1;
                 }
-            }
-        } while(!done);
-        close(s2);
+                if (!done) {
+                    if (send(s2, str, n, 0) < 0) {
+                        perror("send");
+                        done = 1;
+                    }
+                }
+            } while(!done);
+            close(s2);
+        }
     }
     return 0;
 }
@@ -108,6 +112,13 @@ int udc(char* path) {
     return 0;
 }
 
+
+static void sigchld_hdl (int sig) {
+    while (waitpid(-1, NULL, WNOHANG) > 0) {
+	}
+}
+
+
 int main(int argc, char** argv) {
     int c;
     int aflag = 0, bflag = 0;
@@ -143,6 +154,16 @@ int main(int argc, char** argv) {
                 exit(1);
         }
     }
+    // Install SIGCHLD handler
+    struct sigaction act;
+	memset (&act, 0, sizeof(act));
+	act.sa_handler = sigchld_hdl;
+
+	if (sigaction(SIGCHLD, &act, 0)) {
+		perror ("sigaction");
+		exit(1);
+	}
+
     if (session) {
         int pid = fork();
         if (pid < 0) {
@@ -159,11 +180,9 @@ int main(int argc, char** argv) {
             exit(0);
         }
         printf("Forked daemon %d\n", pid);
-        exit(0);
     } else if (cvalue) {
         udc(cvalue);
     }
-    printf("%d %d %s %s %s\n", aflag, bflag, cvalue, dvalue, session);
     return 0;
 }
 
